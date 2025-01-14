@@ -1,13 +1,12 @@
 # VM-UNet
 
-This is the official code repository for "VM-UNet: Vision Mamba UNet for Medical
-Image Segmentation". {[Arxiv Paper](https://arxiv.org/abs/2402.02491)}
+这是“VM-UNet: Vision Mamba UNet用于医学图像分割”项目的官方代码库 {[Arxiv Paper](https://arxiv.org/abs/2402.02491)}
 
-## Abstract
+## 摘要
 
-In the realm of medical image segmentation, both CNN-based and Transformer-based models have been extensively explored. However, CNNs exhibit limitations in long-range modeling capabilities, whereas Transformers are hampered by their quadratic computational complexity. Recently, State Space Models (SSMs), exemplified by Mamba, have emerged as a promising approach. They not only excel in modeling long-range interactions but also maintain a linear computational complexity. In this paper, leveraging state space models, we propose a U-shape architecture model for medical image segmentation, named Vision Mamba UNet (VM-UNet). Specifically, the Visual State Space (VSS) block is introduced as the foundation block to capture extensive contextual information, and an asymmetrical encoder-decoder structure is constructed. We conduct comprehensive experiments on the ISIC17, ISIC18, and Synapse datasets, and the results indicate that VM-UNet performs competitively in medical image segmentation tasks. To our best knowledge, this is the first medical image segmentation model constructed based on the pure SSM-based model. We aim to establish a baseline and provide valuable insights for the future development of more efficient and effective SSM-based segmentation systems.
+在医学图像分割领域，基于CNN和Transformer的模型已经得到了广泛的研究。然而，CNN在长程建模能力方面存在局限性，而Transformer则受到其二次计算复杂度的限制。最近，状态空间模型（SSM），以Mamba为代表，作为一种有前景的方法出现。它们不仅在建模长程交互方面表现出色，而且保持了线性计算复杂度。本文基于状态空间模型，提出了一种用于医学图像分割的U型架构模型——Vision Mamba UNet（VM-UNet）。具体来说，我们引入了视觉状态空间（VSS）模块作为基础模块，用于捕捉广泛的上下文信息，并构建了一个不对称的编码解码结构。我们在ISIC17、ISIC18和Synapse数据集上进行了全面的实验，结果表明，VM-UNet在医学图像分割任务中具有竞争力。据我们所知，这是第一个基于纯SSM模型构建的医学图像分割模型。我们的目标是建立一个基准，并为未来更高效、更有效的基于SSM的分割系统的发展提供有价值的见解。
 
-## 0. Main Environments
+## 0. 主要环境
 
 ```bash
 conda create -n vmunet python=3.8
@@ -23,17 +22,18 @@ pip install mamba_ssm==1.0.1  # mmamba_ssm-1.0.1+cu118torch1.13cxx11abiFALSE-cp3
 pip install scikit-learn matplotlib thop h5py SimpleITK scikit-image medpy yacs
 ```
 
-The .whl files of causal_conv1d and mamba_ssm could be found here. {[Baidu](https://pan.baidu.com/s/1Tibn8Xh4FMwj0ths8Ufazw?pwd=uu5k)}
+causal_conv1d和mamba_ssm的.whl文件可以在这里找到。{[Baidu](https://pan.baidu.com/s/1Tibn8Xh4FMwj0ths8Ufazw?pwd=uu5k)}
 
-## 1. Prepare the dataset
+## 1.  准备数据集
 
-### ISIC datasets
+### ISIC 数据集
 
-- The ISIC17 and ISIC18 datasets, divided into a 7:3 ratio, can be found here {[Baidu](https://pan.baidu.com/s/1Y0YupaH21yDN5uldl7IcZA?pwd=dybm) or [GoogleDrive](https://drive.google.com/file/d/1XM10fmAXndVLtXWOt5G0puYSQyI2veWy/view?usp=sharing)}. 
+- ISIC17和ISIC18数据集已按7:3的比例划分，可以在此处找到 {[百度网盘](https://pan.baidu.com/s/1Y0YupaH21yDN5uldl7IcZA?pwd=dybm) 或 [GoogleDrive](https://drive.google.com/file/d/1XM10fmAXndVLtXWOt5G0puYSQyI2veWy/view?usp=sharing)}。
 
-- After downloading the datasets, you are supposed to put them into './data/isic17/' and './data/isic18/', and the file format reference is as follows. (take the ISIC17 dataset as an example.)
+  下载数据集后，需将其放入'./data/isic17/'和'./data/isic18/'文件夹，文件格式参考如下（以ISIC17数据集为例）。
 
-- './data/isic17/'
+  './data/isic17/'
+
   - train
     - images
       - .png
@@ -45,13 +45,15 @@ The .whl files of causal_conv1d and mamba_ssm could be found here. {[Baidu](http
     - masks
       - .png
 
-### Synapse datasets
 
-- For the Synapse dataset, you could follow [Swin-UNet](https://github.com/HuCaoFighting/Swin-Unet) to download the dataset, or you could download them from {[Baidu](https://pan.baidu.com/s/1JCXBfRL9y1cjfJUKtbEhiQ?pwd=9jti)}.
+### Synapse 数据集
 
-- After downloading the datasets, you are supposed to put them into './data/Synapse/', and the file format reference is as follows.
+- 对于Synapse数据集，可以参考[Swin-UNet](https://github.com/HuCaoFighting/Swin-Unet)下载，或者通过[百度网盘](https://pan.baidu.com/s/1JCXBfRL9y1cjfJUKtbEhiQ?pwd=9jti)下载。
 
-- './data/Synapse/'
+  下载数据集后，需将其放入'./data/Synapse/'，文件格式参考如下。
+
+  './data/Synapse/'
+
   - lists
     - list_Synapse
       - all.lst
@@ -62,13 +64,14 @@ The .whl files of causal_conv1d and mamba_ssm could be found here. {[Baidu](http
   - train_npz
     - casexxxx_slicexxx.npz
 
-## 2. Prepare the pre_trained weights
 
-- The weights of the pre-trained VMamba could be downloaded [here](https://github.com/MzeroMiko/VMamba) or [Baidu](https://pan.baidu.com/s/1ci_YvPPEiUT2bIIK5x8Igw?pwd=wnyy). After that, the pre-trained weights should be stored in './pretrained_weights/'.
+## 2. 准备预训练权重
+
+- 预训练的VMamba权重可以从[这里](https://github.com/MzeroMiko/VMamba)或[百度网盘](https://pan.baidu.com/s/1ci_YvPPEiUT2bIIK5x8Igw?pwd=wnyy)下载。下载后，需将预训练权重存放在'./pretrained_weights/'目录下。
 
 
 
-## 3. Train the VM-UNet
+## 3. 训练VM-UNet
 
 ```bash
 cd VM-UNet
@@ -76,10 +79,10 @@ python train.py  # Train and test VM-UNet on the ISIC17 or ISIC18 dataset.
 python train_synapse.py  # Train and test VM-UNet on the Synapse dataset.
 ```
 
-## 4. Obtain the outputs
+## 4. 获取输出结果
 
-- After trianing, you could obtain the results in './results/'
+- 训练完成后，可以在'./results/'目录下获取结果
 
-## 5. Acknowledgments
+## 5. 致谢
 
-- We thank the authors of [VMamba](https://github.com/MzeroMiko/VMamba) and [Swin-UNet](https://github.com/HuCaoFighting/Swin-Unet) for their open-source codes.
+- 感谢[VMamba](https://github.com/MzeroMiko/VMamba)和[Swin-UNet](https://github.com/HuCaoFighting/Swin-Unet)的作者提供开源代码.
