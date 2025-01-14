@@ -732,12 +732,37 @@ class VSSM(nn.Module):
         return x, skip_list
     
     def forward_features_up(self, x, skip_list):
+        upper_list = []
+        # print('----------------skip_list-----------------')
+        # print(skip_list[-1].size()) # 7, 7, 768
+        # print(skip_list[-2].size()) # 14, 14, 384
+        # print(skip_list[-3].size()) # 28, 28, 192
+        # print(skip_list[0].size()) # 56, 56, 96
+        print('----------------cal_list-----------------')
         for inx, layer_up in enumerate(self.layers_up):
+            
             if inx == 0:
+                x1 = layer_up(layer_up(x))
                 x = layer_up(x)
-            else:
-                x = layer_up(x+skip_list[-inx])
+            elif inx == 1:
+                x2 = layer_up(x1)
+                x = layer_up(x+skip_list[-1]+x1)
+            elif inx == 2:
+                x3 = layer_up(x2)
+                x = layer_up(x+skip_list[-2]+x2)
+            elif inx == 3:
+                x4 = layer_up(x3)
+                x = layer_up(x+skip_list[-3]+x3)
+            # if inx == 0:
+            #     x = layer_up(x)
+            # else:
+            #     x = layer_up(x+skip_list[-inx])
 
+        # print('----------------upper_list-----------------')
+        # print(upper_list[-1].size())
+        # print(upper_list[-2].size())
+        # print(upper_list[-3].size())
+        # print(upper_list[0].size())
         return x
     
     def forward_final(self, x):
@@ -764,8 +789,13 @@ class VSSM(nn.Module):
         return x
 
 
+def test():
+    x = torch.randn(1, 3, 224, 224).cuda()
+    model = VSSM().cuda()
+    model(x)
+    # print(x.shape)
+    # print(model(x).shape)
 
 
-    
-
-
+if __name__ == '__main__':
+    test()
