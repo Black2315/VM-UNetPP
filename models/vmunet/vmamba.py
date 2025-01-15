@@ -725,18 +725,19 @@ class VSSM(nn.Module):
         if self.ape:
             x = x + self.absolute_pos_embed
         x = self.pos_drop(x)
-
-        for layer in self.layers:
+        for inx, layer in self.layers:
             skip_list.append(x)
             x = layer(x)
+           
+
+        print('----------------skip_list-----------------')
+        print(skip_list[0].size()) # 7, 7, 768
+        print(skip_list[1].size()) # 14, 14, 384
+        print(skip_list[2].size()) # 28, 28, 192
+        print(skip_list[3].size()) # 56, 56, 96
         return x, skip_list
     
     def forward_features_up(self, x, skip_list):
-        # print('----------------skip_list-----------------')
-        # print(skip_list[-1].size()) # 7, 7, 768
-        # print(skip_list[-2].size()) # 14, 14, 384
-        # print(skip_list[-3].size()) # 28, 28, 192
-        # print(skip_list[0].size()) # 56, 56, 96
         print('----------------cal_list-----------------')
         for inx, layer_up in enumerate(self.layers_up):
             if inx == 0:
@@ -745,7 +746,7 @@ class VSSM(nn.Module):
             elif inx == 1:
                 # x11 = layer_up(x01)
                 # x21 = layer_up(x11)
-                x12 = layer_up(skip_list[-1]+x01)
+                x12 = layer_up(skip_list[-1]+x)
             elif inx == 2:
                 # x22 = layer_up(x12)
                 x23 = layer_up(skip_list[-2]+x12)
