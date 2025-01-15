@@ -739,27 +739,57 @@ class VSSM(nn.Module):
                 skip_list.append(x)
                 x = layer(x)   # [7, 7, 768] -> [7, 7, 768]
 
+        # x00 = skip_list[0]   # [56, 56, 96] -> [56, 56, 96]
+        # x01 = self.layers[0](x00)  # [56, 56, 96] -> [28, 28, 192]
+        # x02 = self.layers[1](x01)   # [28, 28, 192] -> [14, 14, 384]
+        # x03 = self.layers[2](x02)  # [14, 14, 384] -> [7, 7, 768]
+
+        # x11 = skip_list[1]   # [28, 28, 192] -> [28, 28, 192]
+        # x12 = self.layers[1](x11)  # [28, 28, 192] -> [14, 14, 384]
+        # x13 = self.layers[2](x12)  # [14, 14, 384] -> [7, 7, 768]
+
+        # x22 = skip_list[2]   # [14, 14, 384] -> [14, 14, 384]
+        # x23 = self.layers[2](x22)  # [14, 14, 384] -> [7, 7, 768]
+
+        # x33 = skip_list[3]  # [7, 7, 768] -> [7, 7, 768]
+
+         
+        # 将各层特征图以键值对存储在字典中
+        results = {
+
+            "x00": skip_list[0], # [56, 56, 96] -> [56, 56, 96]
+            "x01": self.layers[0](skip_list[0]),  # [56, 56, 96] -> [28, 28, 192]
+            "x02": self.layers[1](self.layers[0](skip_list[0])), # [28, 28, 192] -> [14, 14, 384]
+            "x03": self.layers[2](self.layers[1](self.layers[0](skip_list[0]))), # [14, 14, 384] -> [7, 7, 768]
+
+            "x11": skip_list[1],  # [28, 28, 192] -> [28, 28, 192]
+            "x12": self.layers[1](skip_list[1]),  # [28, 28, 192] -> [14, 14, 384]
+            "x13": self.layers[2](self.layers[1](skip_list[1])), # [14, 14, 384] -> [7, 7, 768]
+
+            "x22": skip_list[2],   #  [14, 14, 384] -> [14, 14, 384]
+            "x23": self.layers[2](skip_list[2]), # [14, 14, 384] -> [7, 7, 768]
+
+            "x33": skip_list[3],  # [7, 7, 768] -> [7, 7, 768]
+        }
+
         print('----------------skip_list-----------------')
-        print(skip_list[-3].size()) # 28, 28, 192
-        print(skip_list[-2].size()) # 14, 14, 384
-        print(skip_list[-1].size()) # 7, 7, 768
         print(skip_list[0].size()) # 56, 56, 96
         print(skip_list[1].size()) # 28, 28, 192 
         print(skip_list[2].size()) # 14, 14, 384
         print(skip_list[3].size()) # 7, 7, 768 
-        return x, skip_list
+        return x, results
     
-    def forward_features_up(self, x, skip_list):
+    def forward_features_up(self, x, results):
         print('----------------cal_list-----------------')
         for inx, layer_up in enumerate(self.layers_up):
             if inx == 0:
                 x = layer_up(x)  # [7, 7, 768] -> [7, 7, 768]
             elif inx == 1:
-                x = layer_up(skip_list[-1]+x)  # [7, 7, 768] -> [14, 14, 384]
+                x = layer_up(results["x03"]+results["x13"]+results["x23"]+results["x33"]+x)  # [7, 7, 768] -> [14, 14, 384]
             elif inx == 2:
-                x = layer_up(skip_list[-2]+x)  # [14, 14, 384] -> [28, 28, 192]
+                x = layer_up(results["x02"]+results["x12"]+results["x22"]+x)  # [14, 14, 384] -> [28, 28, 192]
             elif inx == 3:
-                x = layer_up(skip_list[-3]+x)   #[28, 28, 192] ->  [56, 56, 96]
+                x = layer_up(results["x01"]+results["x11"]+x)   #[28, 28, 192] ->  [56, 56, 96]
         return x
     
     def forward_final(self, x):
@@ -779,8 +809,8 @@ class VSSM(nn.Module):
         return x
 
     def forward(self, x):
-        x, skip_list = self.forward_features(x)
-        x = self.forward_features_up(x, skip_list)
+        x, results = self.forward_features(x)
+        x = self.forward_features_up(x, results)
         x = self.forward_final(x)
         
         return x
