@@ -772,15 +772,15 @@ class VSSM(nn.Module):
             "x33": skip_list[3],  # [7, 7, 768] -> [7, 7, 768]
         }
 
-        print('----------------skip_list-----------------')
-        print(skip_list[0].size()) # 56, 56, 96
-        print(skip_list[1].size()) # 28, 28, 192 
-        print(skip_list[2].size()) # 14, 14, 384
-        print(skip_list[3].size()) # 7, 7, 768 
+        # print('----------------skip_list-----------------')
+        # print(skip_list[0].size()) # 56, 56, 96
+        # print(skip_list[1].size()) # 28, 28, 192 
+        # print(skip_list[2].size()) # 14, 14, 384
+        # print(skip_list[3].size()) # 7, 7, 768 
         return x, results
     
     def forward_features_up(self, x, results):
-        print('----------------cal_list-----------------')
+        # print('----------------cal_list-----------------')
         for inx, layer_up in enumerate(self.layers_up):
             if inx == 0:
                 x = layer_up(x)  # [7, 7, 768] -> [7, 7, 768]
