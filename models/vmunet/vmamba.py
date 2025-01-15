@@ -728,7 +728,7 @@ class VSSM(nn.Module):
         for inx, layer in enumerate(self.layers):
             if inx == 0:
                 skip_list.append(x)
-                x = layer(x)  #  [56, 56, 96] -> [28, 28, 192]
+                x = layer(x)   # [56, 56, 96] -> [28, 28, 192]
             if inx == 1:
                 skip_list.append(x)
                 x = layer(x)   # [28, 28, 192] -> [14, 14, 384]
@@ -737,7 +737,7 @@ class VSSM(nn.Module):
                 x = layer(x)   # [14, 14, 384] -> [7, 7, 768]
             if inx == 3:
                 skip_list.append(x)
-                x = layer(x)  # [7, 7, 768] -> [7, 7, 768]
+                x = layer(x)   # [7, 7, 768] -> [7, 7, 768]
 
         print('----------------skip_list-----------------')
         print(skip_list[-3].size()) # 28, 28, 192
