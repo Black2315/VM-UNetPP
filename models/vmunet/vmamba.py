@@ -721,37 +721,48 @@ class VSSM(nn.Module):
 
     def forward_features(self, x):
         skip_list = []
-        x = self.patch_embed(x)
+        x = self.patch_embed(x)  # [3, 224, 224] -> [56, 56, 96]
         if self.ape:
             x = x + self.absolute_pos_embed
         x = self.pos_drop(x)
-        for inx, layer in self.layers:
-            skip_list.append(x)
-            x = layer(x)
-           
+        for inx, layer in enumerate(self.layers):
+            if inx == 0:
+                skip_list.append(x)
+                x = layer(x)  #  [56, 56, 96] -> [28, 28, 192]
+            if inx == 1:
+                skip_list.append(x)
+                x = layer(x)   # [28, 28, 192] -> [14, 14, 384]
+            if inx == 2:
+                skip_list.append(x)
+                x = layer(x)   # [14, 14, 384] -> [7, 7, 768]
+            if inx == 3:
+                skip_list.append(x)
+                x = layer(x)  # [7, 7, 768] -> [7, 7, 768]
 
         print('----------------skip_list-----------------')
-        print(skip_list[0].size()) # 7, 7, 768
-        print(skip_list[1].size()) # 14, 14, 384
-        print(skip_list[2].size()) # 28, 28, 192
-        print(skip_list[3].size()) # 56, 56, 96
+        print(skip_list[-3].size()) # 28, 28, 192
+        print(skip_list[-2].size()) # 14, 14, 384
+        print(skip_list[-1].size()) # 7, 7, 768
+        print(skip_list[0].size()) # 56, 56, 96
+        print(skip_list[1].size()) # 28, 28, 192 
+        print(skip_list[2].size()) # 14, 14, 384
+        print(skip_list[3].size()) # 7, 7, 768 
         return x, skip_list
     
     def forward_features_up(self, x, skip_list):
         print('----------------cal_list-----------------')
         for inx, layer_up in enumerate(self.layers_up):
             if inx == 0:
-                x00 = x
-                x = layer_up(x)
+                x = layer_up(x)  
             elif inx == 1:
                 # x11 = layer_up(x01)
                 # x21 = layer_up(x11)
-                x12 = layer_up(skip_list[-1]+x)
+                x = layer_up(skip_list[-1]+x)  
             elif inx == 2:
                 # x22 = layer_up(x12)
-                x23 = layer_up(skip_list[-2]+x12)
+                x = layer_up(skip_list[-2]+x)
             elif inx == 3:
-                x34 = layer_up(skip_list[-3]+x23)
+                x = layer_up(skip_list[-3]+x)
             # if inx == 0:
             #     x = layer_up(x)
             # else:
@@ -763,13 +774,13 @@ class VSSM(nn.Module):
             # print(x21.size())
             # print(x22.size())
             # print(x23.size())
-            print(x34.size())
+            print(x.size())
         # print('----------------upper_list-----------------')
         # print(upper_list[-1].size())
         # print(upper_list[-2].size())
         # print(upper_list[-3].size())
         # print(upper_list[0].size())
-        return x34
+        return x
     
     def forward_final(self, x):
         x = self.final_up(x)
