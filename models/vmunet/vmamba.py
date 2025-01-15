@@ -753,39 +753,19 @@ class VSSM(nn.Module):
         print('----------------cal_list-----------------')
         for inx, layer_up in enumerate(self.layers_up):
             if inx == 0:
-                x = layer_up(x)  
+                x = layer_up(x)  # [7, 7, 768] -> [7, 7, 768]
             elif inx == 1:
-                # x11 = layer_up(x01)
-                # x21 = layer_up(x11)
-                x = layer_up(skip_list[-1]+x)  
+                x = layer_up(skip_list[-1]+x)  # [7, 7, 768] -> [14, 14, 384]
             elif inx == 2:
-                # x22 = layer_up(x12)
-                x = layer_up(skip_list[-2]+x)
+                x = layer_up(skip_list[-2]+x)  # [14, 14, 384] -> [28, 28, 192]
             elif inx == 3:
-                x = layer_up(skip_list[-3]+x)
-            # if inx == 0:
-            #     x = layer_up(x)
-            # else:
-            #     x = layer_up(x+skip_list[-inx])
-            # print(x00.size())
-            # print(x01.size())
-            # print(x11.size())
-            # print(x12.size())
-            # print(x21.size())
-            # print(x22.size())
-            # print(x23.size())
-            print(x.size())
-        # print('----------------upper_list-----------------')
-        # print(upper_list[-1].size())
-        # print(upper_list[-2].size())
-        # print(upper_list[-3].size())
-        # print(upper_list[0].size())
+                x = layer_up(skip_list[-3]+x)   #[28, 28, 192] ->  [56, 56, 96]
         return x
     
     def forward_final(self, x):
-        x = self.final_up(x)
-        x = x.permute(0,3,1,2)
-        x = self.final_conv(x)
+        x = self.final_up(x)   # [56, 56, 96] -> [224, 224, 24]
+        x = x.permute(0,3,1,2)  # [224, 224, 24] -> [24, 224, 224]
+        x = self.final_conv(x)  # [224, 224, 24] -> [1000, 224, 224]
         return x
 
     def forward_backbone(self, x):
