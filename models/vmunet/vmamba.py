@@ -769,10 +769,10 @@ class VSSM(nn.Module):
                 x = layer(x)   # [7, 7, 768] -> [7, 7, 768]
 
         # x00 = skip_list[0]   # [56, 56, 96] 
-        # x10 = layer[0](x00) = skip_list[1]   # [28, 28, 192]
-        # x20 = layer[1](x10) = skip_list[2]   # [14, 14, 384]
-        # x30 = layer[2](x20) = skip_list[3]   # [7, 7, 768]
-        # x40 = layer[3](x30) = skip_list[4]   # [7, 7, 768]
+        # x10 = skip_list[1] = layer[0](x00)   # [56, 56, 96] -> [28, 28, 192]
+        # x20 = skip_list[2] = layer[1](x10)   # [28, 28, 192] -> [14, 14, 384]
+        # x30 = skip_list[3] = layer[2](x20)  # [14, 14, 384] -> [7, 7, 768]
+        # x40 = layer[3](x30)  # [7, 7, 768] -> [7, 7, 768]
 
 
         
