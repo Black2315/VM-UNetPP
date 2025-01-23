@@ -768,6 +768,7 @@ class VSSM(nn.Module):
         if self.ape:
             x = x + self.absolute_pos_embed
         x = self.pos_drop(x)
+        return x
 
     def forward_features(self, x):
         skip_list = []
@@ -910,9 +911,8 @@ class VSSM(nn.Module):
 def test():
     x = torch.randn(1, 3, 224, 224).cuda()
     model = VSSM().cuda()
-    model(x)
-    # print(x.shape)
-    # print(model(x).shape)
+    print(x.shape)
+    print(model(x).shape)
 
 
 if __name__ == '__main__':
