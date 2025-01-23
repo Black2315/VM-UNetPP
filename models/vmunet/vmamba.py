@@ -712,21 +712,21 @@ class VSSM(nn.Module):
             )
             self.layers_up.append(layer)
         # 定义中间传播层
-        self.layers_mid = nn.ModuleList()
-        for i_layer in range(self.num_layers):
-            layer = VSSBlock(
-                dim=dims_decoder[i_layer],
-                depth=depths_decoder[i_layer],
-                d_state=math.ceil(dims[0] / 6) if d_state is None else d_state, # 20240109
-                drop=drop_rate, 
-                attn_drop=attn_drop_rate,
-                drop_path=dpr_decoder[sum(depths_decoder[:i_layer]):sum(depths_decoder[:i_layer + 1])],
-                norm_layer=norm_layer,
-                downsample= None,
-                upsample= None,
-                use_checkpoint=use_checkpoint,
-            )
-            self.layers_mid.append(layer)
+        # self.layers_mid = nn.ModuleList()
+        # for i_layer in range(self.num_layers):
+        #     layer = VSSBlock(
+        #         dim=dims_decoder[i_layer],
+        #         depth=depths_decoder[i_layer],
+        #         d_state=math.ceil(dims[0] / 6) if d_state is None else d_state, # 20240109
+        #         drop=drop_rate, 
+        #         attn_drop=attn_drop_rate,
+        #         drop_path=dpr_decoder[sum(depths_decoder[:i_layer]):sum(depths_decoder[:i_layer + 1])],
+        #         norm_layer=norm_layer,
+        #         downsample= None,
+        #         upsample= None,
+        #         use_checkpoint=use_checkpoint,
+        #     )
+        #     self.layers_mid.append(layer)
 
         self.final_up = Final_PatchExpand2D(dim=dims_decoder[-1], dim_scale=4, norm_layer=norm_layer)
         self.final_conv = nn.Conv2d(dims_decoder[-1]//4, num_classes, 1)
@@ -883,16 +883,17 @@ class VSSM(nn.Module):
 
         # patch embedding
         x = self.forward_begin(x)
-        
+
         # 下采样
+        skip_list = []
         skip_list.append(x)
-        x = self.layer[0](x)  # x00 -> x10
+        x = self.layers[0](x)  # x00 -> x10
         skip_list.append(x)
-        x = self.layer[1](x)  # x10 -> x20
+        x = self.layers[1](x)  # x10 -> x20
         skip_list.append(x)
-        x = self.layer[2](x)  # x20 -> x30
+        x = self.layers[2](x)  # x20 -> x30
         skip_list.append(x)
-        x = self.layer[3](x)  # x30 -> x40
+        x = self.layers[3](x)  # x30 -> x40
 
         # 上采样
         x = self.layers_up[0](x)  # x40 -> x30
