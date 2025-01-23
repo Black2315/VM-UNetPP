@@ -859,8 +859,8 @@ class VSSM(nn.Module):
         x0_4 = self.layers_up[3](x1_0 + x1_1 + x1_2 + x1_3)  # x10 -> x00
 
         # final projection
-        # output = self.forward_final(x0_4)
-        output =  self.forward_final(x0_0 + x0_1 + x0_2 + x0_3 + x0_4)
+        output = self.forward_final(x0_4)
+        # output =  self.forward_final(x0_0 + x0_1 + x0_2 + x0_3 + x0_4)
         
         return output
 
