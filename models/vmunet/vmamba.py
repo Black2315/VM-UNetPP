@@ -711,6 +711,22 @@ class VSSM(nn.Module):
                 use_checkpoint=use_checkpoint,
             )
             self.layers_up.append(layer)
+        # 定义中间传播层
+        self.layers_mid = nn.ModuleList()
+        for i_layer in range(self.num_layers):
+            layer = VSSBlock(
+                dim=dims_decoder[i_layer],
+                depth=depths_decoder[i_layer],
+                d_state=math.ceil(dims[0] / 6) if d_state is None else d_state, # 20240109
+                drop=drop_rate, 
+                attn_drop=attn_drop_rate,
+                drop_path=dpr_decoder[sum(depths_decoder[:i_layer]):sum(depths_decoder[:i_layer + 1])],
+                norm_layer=norm_layer,
+                downsample= None,
+                upsample= None,
+                use_checkpoint=use_checkpoint,
+            )
+            self.layers_mid.append(layer)
 
         self.final_up = Final_PatchExpand2D(dim=dims_decoder[-1], dim_scale=4, norm_layer=norm_layer)
         self.final_conv = nn.Conv2d(dims_decoder[-1]//4, num_classes, 1)
@@ -746,6 +762,13 @@ class VSSM(nn.Module):
     def no_weight_decay_keywords(self):
         return {'relative_position_bias_table'}
 
+    # patch embedding
+    def forward_begin(self, x):
+        x = self.patch_embed(x)  # [3, 224, 224] -> [56, 56, 96]
+        if self.ape:
+            x = x + self.absolute_pos_embed
+        x = self.pos_drop(x)
+
     def forward_features(self, x):
         skip_list = []
         x = self.patch_embed(x)  # [3, 224, 224] -> [56, 56, 96]
@@ -753,20 +776,37 @@ class VSSM(nn.Module):
             x = x + self.absolute_pos_embed
         x = self.pos_drop(x)
 
+
+        # 下采样
+        skip_list.append(x)
+        x = self.layer[0](x)  # x00 -> x10
+        skip_list.append(x)
+        x = self.layer[1](x)  # x10 -> x20
+        skip_list.append(x)
+        x = self.layer[2](x)  # x20 -> x30
+        skip_list.append(x)
+        x = self.layer[3](x)  # x30 -> x40
+
+        # 上采样
+        x = self.layers_up[0](x)  # x40 -> x30
+        x = self.layers_up[1](x+skip_list[3])  # x30 -> x20
+        x = self.layers_up[2](x+skip_list[2])  # x20 -> x10
+        x = self.layers_up[3](x+skip_list[1])  # x10 -> x00
         
-        for inx, layer in enumerate(self.layers):
-            if inx == 0:
-                skip_list.append(x)
-                x = layer(x)   # [56, 56, 96] -> [28, 28, 192]
-            if inx == 1:
-                skip_list.append(x)
-                x = layer(x)   # [28, 28, 192] -> [14, 14, 384]
-            if inx == 2:
-                skip_list.append(x)
-                x = layer(x)   # [14, 14, 384] -> [7, 7, 768]
-            if inx == 3:
-                skip_list.append(x)
-                x = layer(x)   # [7, 7, 768] -> [7, 7, 768]
+        
+        # for inx, layer in enumerate(self.layers):
+        #     if inx == 0:
+        #         skip_list.append(x)
+        #         x = layer(x)   # [56, 56, 96] -> [28, 28, 192]
+        #     if inx == 1:
+        #         skip_list.append(x)
+        #         x = layer(x)   # [28, 28, 192] -> [14, 14, 384]
+        #     if inx == 2:
+        #         skip_list.append(x)
+        #         x = layer(x)   # [14, 14, 384] -> [7, 7, 768]
+        #     if inx == 3:
+        #         skip_list.append(x)
+        #         x = layer(x)   # [7, 7, 768] -> [7, 7, 768]
 
         # x00 = skip_list[0]   # [56, 56, 96] 
         # x10 = skip_list[1] = layer[0](x00)   # [56, 56, 96] -> [28, 28, 192]
@@ -774,7 +814,10 @@ class VSSM(nn.Module):
         # x30 = skip_list[3] = layer[2](x20)  # [14, 14, 384] -> [7, 7, 768]
         # x40 = layer[3](x30)  # [7, 7, 768] -> [7, 7, 768]
 
-
+        # x00 = skip_list[0]   # [56, 56, 96] 
+        # x10 = skip_list[1]   # [28, 28, 192]
+        # x20 = skip_list[2]   # [14, 14, 384]
+        # x30 = skip_list[3]   # [7, 7, 768]
         
         # x01 = self.layers[0](x00)  # [56, 56, 96] -> [28, 28, 192]
         # x02 = self.layers[1](x01)   # [28, 28, 192] -> [14, 14, 384]
@@ -791,22 +834,22 @@ class VSSM(nn.Module):
 
          
         # 将各层特征图以键值对存储在字典中
-        results = {
+        # results = {
 
-            "x00": skip_list[0], # [56, 56, 96] -> [56, 56, 96]
-            "x01": self.layers[0](skip_list[0]),  # [56, 56, 96] -> [28, 28, 192]
-            "x02": self.layers[1](self.layers[0](skip_list[0])), # [28, 28, 192] -> [14, 14, 384]
-            "x03": self.layers[2](self.layers[1](self.layers[0](skip_list[0]))), # [14, 14, 384] -> [7, 7, 768]
+        #     "x00": skip_list[0], # [56, 56, 96] -> [56, 56, 96]
+        #     "x01": self.layers[0](skip_list[0]),  # [56, 56, 96] -> [28, 28, 192]
+        #     "x02": self.layers[1](self.layers[0](skip_list[0])), # [28, 28, 192] -> [14, 14, 384]
+        #     "x03": self.layers[2](self.layers[1](self.layers[0](skip_list[0]))), # [14, 14, 384] -> [7, 7, 768]
 
-            "x11": skip_list[1],  # [28, 28, 192] -> [28, 28, 192]
-            "x12": self.layers[1](skip_list[1]),  # [28, 28, 192] -> [14, 14, 384]
-            "x13": self.layers[2](self.layers[1](skip_list[1])), # [14, 14, 384] -> [7, 7, 768]
+        #     "x11": skip_list[1],  # [28, 28, 192] -> [28, 28, 192]
+        #     "x12": self.layers[1](skip_list[1]),  # [28, 28, 192] -> [14, 14, 384]
+        #     "x13": self.layers[2](self.layers[1](skip_list[1])), # [14, 14, 384] -> [7, 7, 768]
 
-            "x22": skip_list[2],   #  [14, 14, 384] -> [14, 14, 384]
-            "x23": self.layers[2](skip_list[2]), # [14, 14, 384] -> [7, 7, 768]
+        #     "x22": skip_list[2],   #  [14, 14, 384] -> [14, 14, 384]
+        #     "x23": self.layers[2](skip_list[2]), # [14, 14, 384] -> [7, 7, 768]
 
-            "x33": skip_list[3],  # [7, 7, 768] -> [7, 7, 768]
-        }
+        #     "x33": skip_list[3],  # [7, 7, 768] -> [7, 7, 768]
+        # }
 
         # print('----------------skip_list-----------------')
         # print(skip_list[0].size()) # 56, 56, 96
@@ -827,26 +870,37 @@ class VSSM(nn.Module):
             elif inx == 3:
                 x = layer_up(results["x01"]+results["x11"]+x)   #[28, 28, 192] ->  [56, 56, 96]
         return x
-    
+        
+    # final projection
     def forward_final(self, x):
         x = self.final_up(x)   # [56, 56, 96] -> [224, 224, 24]
         x = x.permute(0,3,1,2)  # [224, 224, 24] -> [24, 224, 224]
         x = self.final_conv(x)  # [224, 224, 24] -> [1000, 224, 224]
         return x
 
-    def forward_backbone(self, x):
-        x = self.patch_embed(x)
-        if self.ape:
-            x = x + self.absolute_pos_embed
-        x = self.pos_drop(x)
-
-        for layer in self.layers:
-            x = layer(x)
-        return x
 
     def forward(self, x):
-        x, results = self.forward_features(x)
-        x = self.forward_features_up(x, results)
+
+        # patch embedding
+        x = self.forward_begin(x)
+        
+        # 下采样
+        skip_list.append(x)
+        x = self.layer[0](x)  # x00 -> x10
+        skip_list.append(x)
+        x = self.layer[1](x)  # x10 -> x20
+        skip_list.append(x)
+        x = self.layer[2](x)  # x20 -> x30
+        skip_list.append(x)
+        x = self.layer[3](x)  # x30 -> x40
+
+        # 上采样
+        x = self.layers_up[0](x)  # x40 -> x30
+        x = self.layers_up[1](x+skip_list[3])  # x30 -> x20
+        x = self.layers_up[2](x+skip_list[2])  # x20 -> x10
+        x = self.layers_up[3](x+skip_list[1])  # x10 -> x00
+
+        # final projection
         x = self.forward_final(x)
         
         return x
