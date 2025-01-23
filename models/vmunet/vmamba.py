@@ -769,3 +769,14 @@ class VSSM(nn.Module):
     
 
 
+def test():
+    x = torch.randn(1, 3, 224, 224).cuda()
+    model = VSSM().cuda()
+    print(x.shape)
+    print(model(x).shape)
+
+
+if __name__ == '__main__':
+
+    test()
+
