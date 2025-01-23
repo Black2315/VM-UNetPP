@@ -626,9 +626,34 @@ class VSSLayer_up(nn.Module):
 
 
 class VSSM(nn.Module):
-    def __init__(self, patch_size=4, in_chans=3, num_classes=1000, depths=[2, 2, 9, 2], depths_decoder=[2, 9, 2, 2],
-                 dims=[96, 192, 384, 768], dims_decoder=[768, 384, 192, 96], d_state=16, drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,
-                 norm_layer=nn.LayerNorm, patch_norm=True,
+    def __init__(
+        self,
+        # 输入图像patch大小
+        patch_size=4,
+        # 输入通道数            
+        in_chans=3,
+        # 输出类别数
+        num_classes=1000,
+        # 定义编码器每层的VSS Block数
+        depths=[2, 2, 9, 2],
+        # 定义解码器每层的VSS Block数
+        depths_decoder=[2, 9, 2, 2],
+        # 定义编码器每层的输出通道数（特征图通道数）
+        dims=[96, 192, 384, 768], 
+        # 定义解码器每层的输出通道数（特征图通道数）
+        dims_decoder=[768, 384, 192, 96], 
+        # 定义d_state
+        d_state=16, 
+        # 定义dropout率
+        drop_rate=0., 
+        # 定义注意力dropout率
+        attn_drop_rate=0., 
+        # 定义drop路径率
+        drop_path_rate=0.1,
+        # 定义归一化层
+        norm_layer=nn.LayerNorm, 
+        # 定义patch归一化
+        patch_norm=True,
                  use_checkpoint=False, **kwargs):
         super().__init__()
         self.num_classes = num_classes
@@ -656,6 +681,7 @@ class VSSM(nn.Module):
         dpr_decoder = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths_decoder))][::-1]
 
         self.layers = nn.ModuleList()
+        # 定义编码器每层
         for i_layer in range(self.num_layers):
             layer = VSSLayer(
                 dim=dims[i_layer],
@@ -670,6 +696,7 @@ class VSSM(nn.Module):
             )
             self.layers.append(layer)
 
+        # 定义解码器每层
         self.layers_up = nn.ModuleList()
         for i_layer in range(self.num_layers):
             layer = VSSLayer_up(
@@ -725,6 +752,8 @@ class VSSM(nn.Module):
         if self.ape:
             x = x + self.absolute_pos_embed
         x = self.pos_drop(x)
+
+        
         for inx, layer in enumerate(self.layers):
             if inx == 0:
                 skip_list.append(x)
@@ -739,7 +768,14 @@ class VSSM(nn.Module):
                 skip_list.append(x)
                 x = layer(x)   # [7, 7, 768] -> [7, 7, 768]
 
-        # x00 = skip_list[0]   # [56, 56, 96] -> [56, 56, 96]
+        # x00 = skip_list[0]   # [56, 56, 96] 
+        # x10 = layer[0](x00) = skip_list[1]   # [28, 28, 192]
+        # x20 = layer[1](x10) = skip_list[2]   # [14, 14, 384]
+        # x30 = layer[2](x20) = skip_list[3]   # [7, 7, 768]
+        # x40 = layer[3](x30) = skip_list[4]   # [7, 7, 768]
+
+
+        
         # x01 = self.layers[0](x00)  # [56, 56, 96] -> [28, 28, 192]
         # x02 = self.layers[1](x01)   # [28, 28, 192] -> [14, 14, 384]
         # x03 = self.layers[2](x02)  # [14, 14, 384] -> [7, 7, 768]
