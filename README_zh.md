@@ -1,4 +1,4 @@
-# VM-UNet+++
+# VM-UNet++
 
 这是“VM-UNet++: 多尺度密集跳跃连接的Vision Mamba UNet”项目的官方代码库 
 

@@ -1,4 +1,4 @@
-# VM-UNet
+# VM-UNet++
 This is the official code repository for "VM-UNet++: Vision Mamba UNet with Multi-Scale Feature Fusion for Medical Image Segmentation".
 
 ## Abstract
@@ -69,11 +69,11 @@ The .whl files of causal_conv1d and mamba_ssm could be found here. {[Baidu](http
 
 
 
-## 3. Train the VM-UNet
+## 3. Train the VM-UNet++
 ```bash
 cd VM-UNet
-python train.py  # Train and test VM-UNet on the ISIC17 or ISIC18 dataset.
-python train_synapse.py  # Train and test VM-UNet on the Synapse dataset.
+python train.py  # Train and test VM-UNet++ on the ISIC17 or ISIC18 dataset.
+python train_synapse.py  # Train and test VM-UNet++ on the Synapse dataset.
 ```
 
 ## 4. Obtain the outputs
