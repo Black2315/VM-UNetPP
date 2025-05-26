@@ -558,7 +558,47 @@ class VSSLayer(nn.Module):
 
         return x
     
+class VSSLayer_mid(nn.Module):
+     def __init__(
+        self, 
+        dim, 
+        depth, 
+        attn_drop=0.,
+        drop_path=0., 
+        norm_layer=nn.LayerNorm, 
+        use_checkpoint=False, 
+        d_state=16,
+        **kwargs,
+    ):
+        super().__init__()
+        self.dim = dim
+        self.use_checkpoint = use_checkpoint
+        
+        self.blocks = nn.ModuleList([
+            VSSBlock(
+                hidden_dim=dim,
+                drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
+                norm_layer=norm_layer,
+                attn_drop_rate=attn_drop,
+                d_state=d_state,
+            )
+            for i in range(depth)])
+        
+        if True: # is this really applied? Yes, but been overriden later in VSSM!
+            def _init_weights(module: nn.Module):
+                for name, p in module.named_parameters():
+                    if name in ["out_proj.weight"]:
+                        p = p.clone().detach_() # fake init, just to keep the seed ....
+                        nn.init.kaiming_uniform_(p, a=math.sqrt(5))
+            self.apply(_init_weights)
 
+     def forward(self, x):
+        for blk in self.blocks:
+            if self.use_checkpoint:
+                x = checkpoint.checkpoint(blk, x)
+            else:
+                x = blk(x)
+        return x
 
 class VSSLayer_up(nn.Module):
     """ A basic Swin Transformer layer for one stage.
@@ -626,9 +666,34 @@ class VSSLayer_up(nn.Module):
 
 
 class VSSM(nn.Module):
-    def __init__(self, patch_size=4, in_chans=3, num_classes=1000, depths=[2, 2, 9, 2], depths_decoder=[2, 9, 2, 2],
-                 dims=[96, 192, 384, 768], dims_decoder=[768, 384, 192, 96], d_state=16, drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,
-                 norm_layer=nn.LayerNorm, patch_norm=True,
+    def __init__(
+        self,
+        # 输入图像patch大小
+        patch_size=4,
+        # 输入通道数            
+        in_chans=3,
+        # 输出类别数
+        num_classes=1000,
+        # 定义编码器每层的VSS Block数
+        depths=[2, 2, 9, 2],
+        # 定义解码器每层的VSS Block数
+        depths_decoder=[2, 9, 2, 2],
+        # 定义编码器每层的输出通道数（特征图通道数）
+        dims=[96, 192, 384, 768], 
+        # 定义解码器每层的输出通道数（特征图通道数）
+        dims_decoder=[768, 384, 192, 96], 
+        # 定义d_state
+        d_state=16, 
+        # 定义dropout率
+        drop_rate=0., 
+        # 定义注意力dropout率
+        attn_drop_rate=0., 
+        # 定义drop路径率
+        drop_path_rate=0.1,
+        # 定义归一化层
+        norm_layer=nn.LayerNorm, 
+        # 定义patch归一化
+        patch_norm=True,
                  use_checkpoint=False, **kwargs):
         super().__init__()
         self.num_classes = num_classes
@@ -656,6 +721,7 @@ class VSSM(nn.Module):
         dpr_decoder = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths_decoder))][::-1]
 
         self.layers = nn.ModuleList()
+        # 定义编码器每层
         for i_layer in range(self.num_layers):
             layer = VSSLayer(
                 dim=dims[i_layer],
@@ -669,7 +735,24 @@ class VSSM(nn.Module):
                 use_checkpoint=use_checkpoint,
             )
             self.layers.append(layer)
+        
+        # 定义中间传播层
+        self.layers_mid = nn.ModuleList()
+        for i_layer in range(self.num_layers):
+            layer = VSSLayer_mid(
+                dim=dims[i_layer],
+                depth=depths[i_layer],
+                d_state=math.ceil(dims[0] / 6) if d_state is None else d_state, # 20240109
+                drop=drop_rate, 
+                attn_drop=attn_drop_rate,
+                drop_path=dpr[sum(depths[:i_layer]):sum(depths[:i_layer + 1])],
+                norm_layer=norm_layer,
+                use_checkpoint=use_checkpoint,
+            )
+            self.layers_mid.append(layer)
 
+
+        # 定义解码器每层
         self.layers_up = nn.ModuleList()
         for i_layer in range(self.num_layers):
             layer = VSSLayer_up(
@@ -684,7 +767,8 @@ class VSSM(nn.Module):
                 use_checkpoint=use_checkpoint,
             )
             self.layers_up.append(layer)
-
+            
+        
         self.final_up = Final_PatchExpand2D(dim=dims_decoder[-1], dim_scale=4, norm_layer=norm_layer)
         self.final_conv = nn.Conv2d(dims_decoder[-1]//4, num_classes, 1)
 
@@ -719,54 +803,69 @@ class VSSM(nn.Module):
     def no_weight_decay_keywords(self):
         return {'relative_position_bias_table'}
 
-    def forward_features(self, x):
-        skip_list = []
-        x = self.patch_embed(x)
+    # patch embedding
+    def forward_begin(self, x):
+        x = self.patch_embed(x)  # [3, 224, 224] -> [56, 56, 96]
         if self.ape:
             x = x + self.absolute_pos_embed
         x = self.pos_drop(x)
-
-        for layer in self.layers:
-            skip_list.append(x)
-            x = layer(x)
-        return x, skip_list
-    
-    def forward_features_up(self, x, skip_list):
-        for inx, layer_up in enumerate(self.layers_up):
-            if inx == 0:
-                x = layer_up(x)
-            else:
-                x = layer_up(x+skip_list[-inx])
-
         return x
-    
+
+    # final projection
     def forward_final(self, x):
-        x = self.final_up(x)
-        x = x.permute(0,3,1,2)
-        x = self.final_conv(x)
+        x = self.final_up(x)   # [56, 56, 96] -> [224, 224, 24]
+        x = x.permute(0,3,1,2)  # [224, 224, 24] -> [24, 224, 224]
+        x = self.final_conv(x)  # [224, 224, 24] -> [1000, 224, 224]
         return x
 
-    def forward_backbone(self, x):
-        x = self.patch_embed(x)
-        if self.ape:
-            x = x + self.absolute_pos_embed
-        x = self.pos_drop(x)
-
-        for layer in self.layers:
-            x = layer(x)
-        return x
 
     def forward(self, x):
-        x, skip_list = self.forward_features(x)
-        x = self.forward_features_up(x, skip_list)
-        x = self.forward_final(x)
+
+        # patch embedding
+        x0_0 = self.forward_begin(x)
+
+        # 下采样
+        x1_0 = self.layers[0](x0_0)  # x00 -> x10
+        # 上采样 + 拼接 
+        x0_1 = self.layers_mid[0](x0_0 + PatchExpand2D(dim=self.dims[0]).cuda()(x1_0))
+
+        # 下采样
+        x2_0 = self.layers[1](x1_0)  # x10 -> x20
+        # 上采样 + 拼接
+        x1_1 = self.layers_mid[1](x1_0 + PatchExpand2D(dim=self.dims[1]).cuda()(x2_0))
+        # 上采样 + 拼接
+        x0_2 = self.layers_mid[0](x0_1 + x0_0 + PatchExpand2D(dim=self.dims[0]).cuda()(x1_1))
+
+        # 下采样
+        x3_0 = self.layers[2](x2_0)  # x20 -> x30
+        # 上采样 + 拼接
+        x2_1 = self.layers_mid[2](x2_0 + PatchExpand2D(dim=self.dims[2]).cuda()(x3_0))
+        # 上采样 + 拼接
+        x1_2 = self.layers_mid[1](x1_0 + x1_1 + PatchExpand2D(dim=self.dims[1]).cuda()(x2_1))
+        # 上采样 + 拼接
+        x0_3 = self.layers_mid[0](x0_0 + x0_1 + x0_2 + PatchExpand2D(dim=self.dims[0]).cuda()(x1_2))
+
+        # 下采样
+        x4_0 = self.layers[3](x3_0)  # x30 -> x40
+
+
+        # 上采样 + 拼接
+        x3_1 = self.layers_up[0](x4_0)   # x40 -> x31
+        # 上采样 + 拼接
+        x2_2 = self.layers_up[1](x3_0 + x3_1)  # x30 -> x20
+        # 上采样 + 拼接
+        x1_3 = self.layers_up[2](x2_0 + x2_1 + x2_2)  # x20 -> x10
+        # 上采样 + 拼接
+        x0_4 = self.layers_up[3](x1_0 + x1_1 + x1_2 + x1_3)  # x10 -> x00
+        # 加一层额外的采样 + 拼接
+        # x0_4F = self.layers_mid[0](x0_0+ x0_1 + x0_2+ x0_3 + x0_4)
+
+        # final projection
+        # output = self.forward_final(x0_4F)
+        output = self.forward_final(x0_4)
+        # output =  self.forward_final(x0_0 + x0_1 + x0_2 + x0_3 + x0_4)
         
-        return x
-
-
-
-
-    
+        return output
 
 
 def test():
@@ -777,6 +876,4 @@ def test():
 
 
 if __name__ == '__main__':
-
     test()
-

@@ -75,3 +75,10 @@ class VMUNet(nn.Module):
             not_loaded_keys = [k for k in pretrained_dict.keys() if k not in new_dict.keys()]
             print('Not loaded keys:', not_loaded_keys)
             print("decoder loaded finished!")
+
+
+
+
+
+
+

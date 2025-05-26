@@ -1,9 +1,15 @@
 # VM-UNet
-This is the official code repository for "VM-UNet: Vision Mamba UNet for Medical
-Image Segmentation". {[Arxiv Paper](https://arxiv.org/abs/2402.02491)}
+This is the official code repository for "VM-UNet++: Vision Mamba UNet with Multi-Scale Feature Fusion for Medical Image Segmentation".
 
 ## Abstract
-In the realm of medical image segmentation, both CNN-based and Transformer-based models have been extensively explored. However, CNNs exhibit limitations in long-range modeling capabilities, whereas Transformers are hampered by their quadratic computational complexity. Recently, State Space Models (SSMs), exemplified by Mamba, have emerged as a promising approach. They not only excel in modeling long-range interactions but also maintain a linear computational complexity. In this paper, leveraging state space models, we propose a U-shape architecture model for medical image segmentation, named Vision Mamba UNet (VM-UNet). Specifically, the Visual State Space (VSS) block is introduced as the foundation block to capture extensive contextual information, and an asymmetrical encoder-decoder structure is constructed. We conduct comprehensive experiments on the ISIC17, ISIC18, and Synapse datasets, and the results indicate that VM-UNet performs competitively in medical image segmentation tasks. To our best knowledge, this is the first medical image segmentation model constructed based on the pure SSM-based model. We aim to establish a baseline and provide valuable insights for the future development of more efficient and effective SSM-based segmentation systems.
+The Mamba model based on state space model(SSM) has attracted widespread attention.
+Mamba-based vision models show promise as the next-generation alternative to CNN and Transformer architectures in medical image segmentation tasks.
+However, existing vision Mamba models still face challenges in fusing features from different scales.
+To address this challenge, we propose VM-UNet++, a redesigned U-shaped network based on vision Mamba. 
+This model introduces a series of blocks between the encoder and decoder.
+These intermediate blocks, based on Mamba architecture, can capture low-level and high-level details from feature maps at different encoding stages. 
+The redesigned skip connections between the blocks can better fuse feature information across different scales.
+VM-UNet++ has been evaluated on the ISIC18, Synapse, and ACDC datasets, outperforming existing popular architectures across several evaluation metrics.
 
 ## 0. Main Environments
 ```bash
